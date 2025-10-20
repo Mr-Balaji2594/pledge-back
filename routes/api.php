@@ -4,6 +4,7 @@ use App\Http\Controllers\CustomerController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\AuthController;
+use App\Http\Controllers\BankPledgeController;
 use App\Http\Controllers\PledgesController;
 
 // API Routes
@@ -25,4 +26,11 @@ Route::middleware(['auth:api'])->group(function () {
 Route::middleware(['auth:api'])->group(function () {
     Route::get('/pledges', [PledgesController::class, 'getAll']);
     Route::post('/pledges', [PledgesController::class, 'createData']);
+    Route::delete('/pledges/{id}', [PledgesController::class, 'deleteData']);
+    Route::get('/pledges/{hashid}', [PledgesController::class, 'getPledgeById']);
+});
+
+//Bank Pledge Routes
+Route::middleware(['auth:api'])->group(function () {
+    Route::get('/bank-pledges/{loanId}', [BankPledgeController::class, 'getLoanId']);
 });

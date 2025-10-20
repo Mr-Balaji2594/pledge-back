@@ -6,6 +6,7 @@ use App\Models\Pledges;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 use Hashids\Hashids;
+use Illuminate\Support\Facades\Storage;
 
 class PledgesController extends Controller
 {
@@ -42,35 +43,55 @@ class PledgesController extends Controller
 
     public function createData(Request $request)
     {
-        // ✅ Validation rules
         $rules = [
-            'customer_id'           => 'required|exists:customers,customer_id',
-            'customer_name'         => 'required|string|max:100',
-            'loan_id'               => 'required|string|max:20|unique:pledges,loan_id',
-            'ornament_name'         => 'required|string|max:100',
-            'ornament_nature'       => 'required|in:Silver,Gold,Platinum',
-            'date_of_pledge'        => 'required|date',
-            'current_rate_per_gram' => 'required|numeric|min:0',
-            'weight'                => 'required|numeric|min:0',
-            'fixed_percent_loan'    => 'required|numeric|min:0|max:100',
-            'interest_rate'         => 'required|numeric|min:0|max:100',
-            'date_of_maturity'      => 'required|date|after_or_equal:date_of_pledge',
-            'late_payment_interest' => 'required|numeric|min:0|max:100',
-            'amount'                => 'required|numeric|min:0',
-            'sgst'                  => 'required|numeric|min:0',
-            'cgst'                  => 'required|numeric|min:0',
-            'grand_total'           => 'required|numeric|min:0',
+            'customer_id' => 'required|exists:customers,customer_id',
+            'customer_name' => 'required|string',
+            'ornament_name' => 'required|string|max:100',
+            'ornament_nature' => 'required|string',
+            'weight' => 'required|numeric|min:0.01',
+            'current_rate_per_gram' => 'required|numeric|min:0.01',
+            'fixed_percent_loan' => 'required|numeric|min:1|max:100',
+            'date_of_pledge' => 'required|date',
+            'date_of_maturity' => 'required|date|after:date_of_pledge',
+            'interest_rate' => 'required|numeric|min:0|max:100',
+            'late_payment_interest' => 'nullable|numeric|min:0|max:100',
+            'amount' => 'required|numeric|min:0.01',
+            'gst_rate' => 'required|numeric',
+            'sgst' => 'required|numeric',
+            'cgst' => 'required|numeric',
+            'grand_total' => 'required|numeric',
+            'image_upload' => 'nullable|file|mimes:jpeg,jpg,png,pdf|max:5120', // 5MB
+            'aadhar_upload' => 'nullable|file|mimes:jpeg,jpg,png,pdf|max:5120', // 5MB
         ];
 
         $validator = Validator::make($request->all(), $rules);
 
-        // ❌ Validation failed
         if ($validator->fails()) {
             return response()->json(['errors' => $validator->errors()], 422);
         }
 
-        // ✅ Create pledge
-        $pledge = Pledges::create($request->all());
+        $data = $request->except(['image_upload', 'aadhar_upload', 'loan_id']);
+
+        if ($request->hasFile('image_upload')) {
+            $imagePath = $request->file('image_upload')->store('pledges/images', 'public');
+            $data['image_upload'] = $imagePath;
+        }
+
+        if ($request->hasFile('aadhar_upload')) {
+            $aadharPath = $request->file('aadhar_upload')->store('pledges/aadhar', 'public');
+            $data['aadhar_upload'] = $aadharPath;
+        }
+
+        if ($request->filled('loan_id')) {
+            $data['loan_id'] = $request->input('loan_id');
+        } else {
+            // Auto-generate loan_id if not provided
+            $latestPledge = Pledges::latest('pledge_id')->first();
+            $nextId = $latestPledge ? $latestPledge->pledge_id + 1 : 1;
+            $data['loan_id'] = 'LN' . str_pad($nextId, 5, '0', STR_PAD_LEFT);
+        }
+
+        Pledges::create($data);
 
         return response()->json([
             'message' => 'PLEDGE CREATED',
@@ -95,5 +116,35 @@ class PledgesController extends Controller
         $pledge->delete();
 
         return response()->json(['message' => 'PLEDGE DELETED'], 200);
+    }
+
+    public function getPledgeById($id)
+    {
+        $hashids = new Hashids('', 10);
+        $decodedId = $hashids->decode($id);
+
+        if (empty($decodedId)) {
+            return response()->json(['error' => 'INVALID PLEDGE ID'], 400);
+        }
+
+        $pledge = Pledges::with('customer')->find($decodedId[0]);
+
+        if (!$pledge) {
+            return response()->json(['error' => 'PLEDGE NOT FOUND'], 404);
+        }
+
+        if ($pledge->image_upload) {
+            $pledge->image_url = Storage::url($pledge->image_upload);
+        } else {
+            $pledge->image_url = null;
+        }
+
+        if ($pledge->aadhar_upload) {
+            $pledge->aadhar_url = Storage::url($pledge->aadhar_upload);
+        } else {
+            $pledge->aadhar_url = null;
+        }
+
+        return response()->json($pledge);
     }
 }

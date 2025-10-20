@@ -10,7 +10,7 @@ class CustomerController extends Controller
 {
     public function getAll()
     {
-        $customers = Customers::all();
+        $customers = Customers::orderByDesc('customer_id')->get();
         return response()->json($customers);
     }
 
