@@ -43,6 +43,7 @@ class PledgesController extends Controller
 
     public function createData(Request $request)
     {
+        // 🧩 1. Validation rules
         $rules = [
             'customer_id' => 'required|exists:customers,customer_id',
             'customer_name' => 'required|string',
@@ -60,8 +61,8 @@ class PledgesController extends Controller
             'sgst' => 'required|numeric',
             'cgst' => 'required|numeric',
             'grand_total' => 'required|numeric',
-            'image_upload' => 'nullable|file|mimes:jpeg,jpg,png,pdf|max:5120', // 5MB
-            'aadhar_upload' => 'nullable|file|mimes:jpeg,jpg,png,pdf|max:5120', // 5MB
+            'image_upload' => 'nullable|file|mimes:jpeg,jpg,png,pdf|max:5120',
+            'aadhar_upload' => 'nullable|file|mimes:jpeg,jpg,png,pdf|max:5120',
         ];
 
         $validator = Validator::make($request->all(), $rules);
@@ -70,33 +71,58 @@ class PledgesController extends Controller
             return response()->json(['errors' => $validator->errors()], 422);
         }
 
+        // 🧩 2. Prepare data
         $data = $request->except(['image_upload', 'aadhar_upload', 'loan_id']);
 
+        // 🧩 3. Handle file uploads (with fallback for cPanel)
         if ($request->hasFile('image_upload')) {
             $imagePath = $request->file('image_upload')->store('pledges/images', 'public');
             $data['image_upload'] = $imagePath;
+            $this->copyToPublic($imagePath); // ✅ Auto copy for cPanel
         }
 
         if ($request->hasFile('aadhar_upload')) {
             $aadharPath = $request->file('aadhar_upload')->store('pledges/aadhar', 'public');
             $data['aadhar_upload'] = $aadharPath;
+            $this->copyToPublic($aadharPath); // ✅ Auto copy for cPanel
         }
 
+        // 🧩 4. Auto-generate Loan ID
         if ($request->filled('loan_id')) {
             $data['loan_id'] = $request->input('loan_id');
         } else {
-            // Auto-generate loan_id if not provided
             $latestPledge = Pledges::latest('pledge_id')->first();
             $nextId = $latestPledge ? $latestPledge->pledge_id + 1 : 1;
             $data['loan_id'] = 'LN' . str_pad($nextId, 5, '0', STR_PAD_LEFT);
         }
 
-        Pledges::create($data);
+        // 🧩 5. Create pledge
+        $pledge = Pledges::create($data);
 
+        // 🧩 6. Generate full URLs (for API/frontend)
+        $imageUrl = $pledge->image_upload ? asset('storage/' . $pledge->image_upload) : null;
+        $aadharUrl = $pledge->aadhar_upload ? asset('storage/' . $pledge->aadhar_upload) : null;
+
+        // 🧩 7. Return API response
         return response()->json([
             'message' => 'PLEDGE CREATED',
         ], 201);
     }
+
+    private function copyToPublic($relativePath)
+    {
+        $source = storage_path('app/public/' . $relativePath);
+        $destination = public_path('storage/' . $relativePath);
+
+        if (!file_exists(dirname($destination))) {
+            mkdir(dirname($destination), 0777, true);
+        }
+
+        if (file_exists($source)) {
+            copy($source, $destination);
+        }
+    }
+
 
     public function deleteData($id)
     {

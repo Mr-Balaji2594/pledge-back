@@ -46,8 +46,13 @@ class Customers extends Model
         });
     }
 
-    public function images()
+    public function getImageUrlAttribute()
     {
-        return $this->hasMany(CustomerImage::class);
+        return $this->customer_image ? asset('storage/' . $this->customer_image) : null;
+    }
+
+    public function pledges()
+    {
+        return $this->hasMany(Pledges::class, 'customer_id', 'customer_id');
     }
 }

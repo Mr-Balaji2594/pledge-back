@@ -32,5 +32,5 @@ Route::middleware(['auth:api'])->group(function () {
 
 //Bank Pledge Routes
 Route::middleware(['auth:api'])->group(function () {
-    Route::get('/bank-pledges/{loanId}', [BankPledgeController::class, 'getLoanId']);
+    Route::get('/bank-pledges/{loanId}', [BankPledgeController::class, 'getLoanDetails']);
 });

@@ -43,8 +43,8 @@ class Pledges extends Model
 
     // Casts for numeric/date fields
     protected $casts = [
-        'date_of_pledge' => 'date',
-        'date_of_maturity' => 'date',
+        'date_of_pledge' => 'date:Y-m-d',
+        'date_of_maturity' => 'date:Y-m-d',
         'current_rate_per_gram' => 'decimal:2',
         'weight' => 'decimal:2',
         'fixed_percent_loan' => 'decimal:2',
@@ -56,9 +56,22 @@ class Pledges extends Model
         'grand_total' => 'decimal:2',
     ];
 
+
     // Relationship: Each pledge belongs to one customer
     public function customer()
     {
         return $this->belongsTo(Customers::class, 'customer_id', 'customer_id');
+    }
+
+    protected $appends = ['image_url', 'aadhar_url'];
+
+    public function getImageUrlAttribute()
+    {
+        return $this->image_upload ? asset('storage/' . $this->image_upload) : null;
+    }
+
+    public function getAadharUrlAttribute()
+    {
+        return $this->aadhar_upload ? asset('storage/' . $this->aadhar_upload) : null;
     }
 }
